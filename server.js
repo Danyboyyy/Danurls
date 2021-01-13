@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const bodyParser = require('body-parser');
 const next = require('next');
 const cors = require('cors');
@@ -33,59 +34,61 @@ app.prepare().then(() => {
   server.use(bodyParser.urlencoded({ extended: true }));
   server.use(bodyParser.json());
 
-  server.get('/:slug', (req, res, next) => {
+  const notFound = path.join(__dirname, 'pages/NotFound.js');
+
+  server.get('/:slug', async (req, res, next) => {
     const { slug } = req.params;
-    
-    ShortUrl.findOne({ slug })
-    .then((su) => {
-      res.redirect(su.url)
-    }, (err) => next(err))
-    .catch((err) => {
-      next(err);
-    })
+    try {
+      const found = await ShortUrl.findOne({ slug });
+      if (found) {
+        return res.redirect(found.url);
+      }
+      return res.status(404).sendFile(notFound);
+    }
+    catch (error) {
+      return res.status(404).sendFile(notFound);
+    }
   }); 
   
-  server.post('/url', (req, res, next) => {
+  server.post('/url', async (req, res, next) => {
     let { slug, url } = req.body;
-  
-    const shortUrl = new ShortUrl();
-    shortUrl.slug = slug;
-    shortUrl.url = url;
-  
-    shortUrl.validate()
-    .catch((err) => {
-      next(err);
-    });
-  
-    if(!slug) {
-      slug = nanoid(5);
-    }
-    else {
-      ShortUrl.findOne({ slug: slug })
-      .catch((err) => {
-        next(err);
-      });
-    }
-  
-    slug = slug.toLowerCase();
     
-    ShortUrl.create({ slug: slug, url: url })
-    .then((su) => {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.json(su);
-    }, (err) => next(err))
-    .catch((err) => {
-      next(err);
-    })
+    try {
+      const shortUrl = new ShortUrl();
+      shortUrl.slug = slug;
+      shortUrl.url = url;
+
+      await shortUrl.validate();
+
+      if(!slug) {
+        slug = nanoid(5);
+      }
+      else {
+        const exists = await ShortUrl.findOne({ slug: slug });
+        if (exists) {
+          throw new Error('Slug already exists!');
+        }
+      }
+
+      slug = slug.toLowerCase();
+
+      const created = await ShortUrl.create({ slug: slug, url: url });
+
+      if (created) {
+        res.json(created);
+      }
+    }
+    catch (error) {
+      next(error);
+    }
   });
-  
+
   server.use((err, req, res, next) => {
     if (err.status) {
-      res.status(err.status);
+      res.statusCode = err.status;
     }
     else {
-      res.status(500);
+      res.statusCode = 500;
     }
     res.json({
       message: err.message,

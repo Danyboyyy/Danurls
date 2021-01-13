@@ -5,9 +5,12 @@ export default function Form() {
   const [url, setUrl] = useState('');
   const [slug, setSlug] = useState('');
   const [created, setCreate] = useState(undefined);
+  const [error, setError] = useState(undefined);
 
-  function handleSubmit(event) {
-    fetch('/url', {
+  async function handleSubmit(event) {
+    event.preventDefault();
+
+    const response = await fetch('/url', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -16,12 +19,18 @@ export default function Form() {
         slug: slug || undefined,
         url: url
       })
-    })
-    .then(res => res.json())
-    .then(res => setCreate(res))
-    .then(data => console.log(data))
-    .catch(err => console.log(err));
-    event.preventDefault();
+    });
+    
+    if (response.ok) {
+      const newUrl = await response.json();
+      console.log(newUrl);
+      setCreate(newUrl);
+    }
+    else {
+      const error = await response.json();
+      console.log(error);
+      setError(error);
+    }
   };
 
   function handleChange(event) {
@@ -55,6 +64,11 @@ export default function Form() {
           <a href={`http://localhost:3000/${created.slug}`}>localhost:3000/{created.slug}</a>
         </div>
         :
+        <div></div>
+      }
+      {error ? 
+        <div>{error.message}</div>
+      :
         <div></div>
       }
     </div>
